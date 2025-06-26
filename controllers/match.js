@@ -1,5 +1,6 @@
 const Match = require("../models/matchModel");
 const Diary = require("../models/diaryModel");
+const { createNotification } = require("./notificationController");
 
 // ✅ 1. Giriş yapan kullanıcının eşleşmelerini getir
 exports.getMatches = async (req, res) => {
@@ -22,7 +23,6 @@ exports.getMatches = async (req, res) => {
   }
 };
 
-// ✅ 2. Belirli bir eşleşmenin mesajlarını getir
 exports.getMessagesByMatchId = async (req, res) => {
   try {
     const matchId = req.params.matchId;
@@ -42,14 +42,20 @@ exports.getMessagesByMatchId = async (req, res) => {
       return res.status(403).json({ message: "Bu eşleşmeden çıktığınız için mesaj geçmişi gizlenmiştir." });
     }
 
-    res.status(200).json(match.messages || []);
+    // Kullanıcı için en son silme zamanı varsa, sadece sonrası mesajlar gösterilir
+    const hideEntry = match.hiddenTimestamps?.find(e => e.userId.toString() === userId);
+    const filteredMessages = hideEntry
+      ? match.messages.filter(msg => new Date(msg.createdAt) > new Date(hideEntry.timestamp))
+      : match.messages;
+
+    res.status(200).json(filteredMessages);
   } catch (err) {
     console.error("❌ Mesaj alma hatası:", err);
     res.status(500).json({ message: "Sunucu hatası" });
   }
 };
 
-// ✅ 3. Yeni mesaj gönder
+
 exports.sendMessage = async (req, res) => {
   try {
     const matchId = req.params.matchId;
@@ -86,13 +92,25 @@ exports.sendMessage = async (req, res) => {
 
     await match.save();
 
-    return res.status(200).json({ message: "Mesaj gönderildi", messages: match.messages });
+    // 🔔 Bildirim gönder
+    const otherUserId = match.user1.toString() === userId ? match.user2 : match.user1;
 
+    await createNotification({
+      userId: otherUserId,
+      type: "message",
+      content: "Yeni bir mesajın var!",
+      link: "/mesajlar"
+    });
+
+    return res.status(200).json({ message: "Mesaj gönderildi", messages: match.messages });
   } catch (err) {
     console.error("❌ Mesaj gönderme hatası:", err);
     return res.status(500).json({ message: "Sunucu hatası" });
   }
 };
+
+
+
 
 // ✅ 4. Memnuniyet onayı → sınırsız mesajlaşma
 exports.approveMatch = async (req, res) => {
@@ -112,6 +130,21 @@ exports.approveMatch = async (req, res) => {
 
     if (match.approvedByUser1 && match.approvedByUser2) {
       match.isUnlimited = true;
+
+      // 🔔 Bildirim gönder her iki tarafa
+      await createNotification({
+        userId: match.user1,
+        type: "chat",
+        content: "Eşleşmeniz onaylandı! Artık  sohbet edebilirsiniz.",
+        link: `/mesajlar`
+      });
+
+      await createNotification({
+        userId: match.user2,
+        type: "chat",
+        content: "Eşleşmeniz onaylandı! Artık sohbet edebilirsiniz.",
+        link: `/mesajlar`
+      });
     }
 
     await match.save();
@@ -126,6 +159,7 @@ exports.approveMatch = async (req, res) => {
   }
 };
 
+
 // ✅ 5. Eşleşmeden çık (yorum block, görünüm gizle)
 exports.leaveMatch = async (req, res) => {
   try {
@@ -135,7 +169,6 @@ exports.leaveMatch = async (req, res) => {
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ message: "Eşleşme bulunamadı." });
 
-    // Günlük yorumu disable et → tekrar eşleşilemesin
     const diary = await Diary.findById(match.diary);
     if (diary) {
       const comment = diary.comments.find(c =>
@@ -149,7 +182,6 @@ exports.leaveMatch = async (req, res) => {
       }
     }
 
-    // Kullanıcıyı gizli listeye ekle
     if (!match.hiddenFor.includes(userId)) {
       match.hiddenFor.push(userId);
       if (match.user1.toString() === userId) match.leftByUser1 = true;
@@ -157,9 +189,84 @@ exports.leaveMatch = async (req, res) => {
       await match.save();
     }
 
+    // 🔔 Bildirimi her zaman gönder (if bloğunun dışında!)
+    const otherUserId =
+      match.user1.toString() === userId ? match.user2 : match.user1;
+
+      console.log("💔 Eşleşme sona erdi bildirimi tetiklendi:", otherUserId);
+    await createNotification({
+      userId: otherUserId,
+      type: "unmatch",
+      content: "Eşleşme sona erdi. Artık bu kişiyle mesajlaşamazsınız.",
+      link: "/mesajlar",
+      
+    });
+
     return res.status(200).json({ message: "Eşleşme kaldırıldı ve tekrar eşleşme engellendi." });
   } catch (err) {
     console.error("❌ Eşleşmeden çıkış hatası:", err);
     res.status(500).json({ message: "Sunucu hatası" });
   }
 };
+
+
+// ✅ 6. Belirli eşleşmenin durumunu getir (mesaj kutusu kontrolü için)
+exports.getMatchById = async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.matchId);
+
+    if (!match) return res.status(404).json({ message: "Eşleşme bulunamadı." });
+
+    const currentUserId = req.user.id;
+
+    const otherUserId =
+      String(match.user1) === currentUserId ? String(match.user2) : String(match.user1);
+
+    const isHiddenByOther = match.hiddenFor.includes(otherUserId);
+    const iAmHiddenByOther = match.hiddenFor.includes(currentUserId); // ✅ yeni bilgi
+
+    return res.json({
+      isUnlimited: match.isUnlimited,
+      isHiddenByOther,
+      iAmHiddenByOther, // ✅ geri döndürüyoruz
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Sunucu hatası" });
+  }
+};
+
+
+exports.hideMatchForUser = async (req, res) => {
+  try {
+    const matchId = req.params.matchId;
+    const userId = req.user.id;
+
+    const match = await Match.findById(matchId);
+    if (!match) return res.status(404).json({ message: "Eşleşme bulunamadı." });
+
+    // ✅ hiddenFor dizisine ekle (hala gerekli)
+    if (!match.hiddenFor.includes(userId)) {
+      match.hiddenFor.push(userId);
+    }
+
+    // ✅ hiddenTimestamps dizisini güncelle
+    const existing = match.hiddenTimestamps?.find(e => e.userId.toString() === userId);
+    const now = new Date();
+
+    if (existing) {
+      existing.timestamp = now; // varsa güncelle
+    } else {
+      match.hiddenTimestamps = match.hiddenTimestamps || [];
+      match.hiddenTimestamps.push({ userId, timestamp: now });
+    }
+
+    await match.save();
+
+    res.status(200).json({ message: "Sohbet sadece sizde silindi." });
+  } catch (err) {
+    console.error("❌ Sohbet gizleme hatası:", err);
+    res.status(500).json({ message: "Sunucu hatası" });
+  }
+};
+

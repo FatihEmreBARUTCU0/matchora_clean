@@ -19,4 +19,12 @@ router.patch("/:matchId/approve", verifyToken, matchController.approveMatch);
 router.post("/:matchId/leave", verifyToken, matchController.leaveMatch);
 
 
+
+
+router.post("/:matchId/hide", verifyToken, matchController.hideMatchForUser);
+
+// 🔎 Tekil eşleşmenin durumunu getir (mesaj kutusunu kontrol etmek için)
+router.get("/status/:matchId", verifyToken, matchController.getMatchById);
+
+
 module.exports = router;

@@ -1,6 +1,8 @@
 const Diary = require('../models/diaryModel');
 const Personality = require('../models/personalityModel');
 const Match = require("../models/matchModel");
+const Notification = require("../models/notificationModel"); 
+
 
 // ✅ 1. Kişilik tipine göre eşleşen günlükleri getir (Keşfet)
 exports.getMatchingDiaries = async (req, res) => {
@@ -155,6 +157,15 @@ exports.likeComment = async (req, res) => {
     });
 
     await match.save();
+    // 🔔 Bildirim oluştur
+  await Notification.create({
+ userId: comment.userId,
+  type: "match",
+  content: "Yorumun beğenildi ve eşleşme başladı!", // ✅ Doğru olan bu
+  link: "/mesajlar"
+});
+
+
 
     return res.status(201).json({ message: "Eşleşme başarıyla oluşturuldu.", matchId: match._id });
 
@@ -184,6 +195,13 @@ exports.commentDiary = async (req, res) => {
 
     diary.comments.push({ userId, content });
     await diary.save();
+ await Notification.create({
+  userId: diary.userId,
+  type: "comment",
+  content: "Günlüğüne yeni bir yorum geldi!",
+  link: `/gunlukler` // 🔧 burası düzeltildi
+});
+
 
     return res.status(201).json({ message: "Yorum başarıyla eklendi." });
   } catch (err) {

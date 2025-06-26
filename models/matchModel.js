@@ -29,6 +29,14 @@ const MatchSchema = new mongoose.Schema({
   // Gizlenmiş eşleşmeler (örn: eşleşmeden çıkan kullanıcılar için)
   hiddenFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
+  // Her kullanıcı için sohbeti silme zamanı
+  hiddenTimestamps: [
+    {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      timestamp: { type: Date, default: Date.now }
+    }
+  ],
+
   // Mesaj geçmişi
   messages: {
     type: [MessageSchema],

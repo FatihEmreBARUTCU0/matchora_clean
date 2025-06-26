@@ -24,4 +24,5 @@ router.delete('/:id', verifyToken, diaryController.deleteDiary);
 // Kullanıcının eşleştiği günlükleri getirme (girişli)
 router.get('/matched', verifyToken, diaryController.getMatchedComments);
 
+
 module.exports = router;
