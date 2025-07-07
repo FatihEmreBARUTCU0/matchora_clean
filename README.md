@@ -35,4 +35,26 @@ Matchora is a web app where users are anonymously matched based on MBTI-style pe
 
 ---
 
+---
+
+## 📷 Ekran Görüntüleri | Screenshots
+
+### 💬 Sınırlı Mesaj Ekranı | Limited Chat Screen
+![chat-limited](./screenshots/chat-limited.png)
+
+### 🔓 Sınırsız Mesaj Ekranı | Unlocked Chat Screen
+![chat-unlocked](./screenshots/chat-unlocked.png)
+
+### 🧠 Kişilik Testi Sorusu | Personality Test Question
+![personality-question](./screenshots/personality-question.png)
+
+### 🧬 Kişilik Sonucu ve Ruh Hayvanı | Personality Result & Spirit Animal
+![personality-result](./screenshots/personality-result.png)
+
+### 🗃️ Topluluk Günlük Kartları | Diary Cards in Explore
+![diary-cards](./screenshots/diary-cards.png)
+
+### 🧩 “Benim Gibi Olanlar” Sayfası | "People Like Me" Section
+![like-me](./screenshots/Like-Me.png)
+
 
